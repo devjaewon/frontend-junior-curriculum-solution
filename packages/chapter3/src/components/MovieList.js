@@ -1,7 +1,10 @@
+import MovieRepository from "@/persist/MovieRepository";
 import MovieCard from "./MovieCard";
 
-export default function MovieList() {
-  const movies = [];
+// 비동기 컴포넌트로 서버 컴포넌트를 손쉽게 구현합니다.
+// Suspense와 함께 동작합니다.
+export default async function MovieList({ query }) {
+  const movies = await MovieRepository.instance.search(query);
 
   if (movies.length === 0) {
     return (

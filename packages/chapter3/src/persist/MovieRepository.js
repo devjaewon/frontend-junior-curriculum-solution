@@ -1,3 +1,5 @@
+// db에 대한 접근 로직이 클라이언트에 노출되어서는 안됩니다.
+import 'server-only';
 import mock from './mock/notes_data.json';
 
 export default class MovieRepository {
