@@ -19,7 +19,6 @@ class HardWork {
   }
 
   _do(start, end) {
-    console.log(start, end);
     const tasks = this._tasks.slice(start, end);
 
     for (let i = 0; i < tasks.length; i++) {
