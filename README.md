@@ -12,4 +12,4 @@
     4. [React Transition API 만들기](.)
 3. RSC와 `Next.js`
     1. [RSC를 활용해서 앱 만들기](./packages/chapter3/README.md)
-    2. [RSC를 구동 환경을 직접 만들어보기](.)
+    2. [RSC를 활용한 앱의 화면이동 간 인터렉션 변경하기](./packages/chapter3/README.md)

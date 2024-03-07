@@ -1,13 +1,14 @@
 // 클라이언트에서 인터렉션(값의 입력) 되어야 하는 컴포넌트이기 때문에 클라이언트 컴포넌트로 정의합니다.
 'use client';
 
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 
 export default function SearchInput() {
-  const [text, setText] = useState('');
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
+  const [text, setText] = useState(searchParams.get('query') || '');
 
   function navigate(query) {
     router.replace(`${pathname}?query=${query}`);
