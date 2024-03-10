@@ -13,5 +13,7 @@
     "webpack": "^5.90.3",
     "webpack-dev-server": "^5.0.2"
   },
-  "dependencies": {}
+  "dependencies": {
+    "@kjojs/eventbus": "^1.1.4"
+  }
 }

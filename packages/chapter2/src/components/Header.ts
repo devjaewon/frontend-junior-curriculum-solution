@@ -1,4 +1,4 @@
-import { createElement as e } from '../lib/ReactElement';
+import { createElement as e } from '../lib/react/ReactElement';
 
 export default function Header() {
 	return e('header', { className: 'header' }, [

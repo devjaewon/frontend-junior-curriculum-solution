@@ -1,4 +1,4 @@
-import { createElement as e } from '../lib/ReactElement';
+import { createElement as e } from '../lib/react/ReactElement';
 
 export default function Main() {
 	return e('main', { className: 'main' }, [

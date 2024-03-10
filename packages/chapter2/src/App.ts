@@ -1,4 +1,4 @@
-import { createElement as e } from './lib/ReactElement';
+import { createElement as e } from './lib/react/ReactElement';
 import Header from './components/Header';
 import Main from './components/Main';
 
