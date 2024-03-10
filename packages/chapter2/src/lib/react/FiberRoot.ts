@@ -1,30 +1,45 @@
+import EventBus from "@kjojs/eventbus";
 import { Fiber } from "./Fiber";
 import { PatchNode } from "./PatchNode";
-import { ReactComponent } from "./ReactElement";
 
-export class FiberRoot {
-  private _fiber: Fiber;
-  private _patch: PatchNode | null = null;
+export class FiberRoot extends EventBus<{
+  update: {
+    key: string;
+    task: (fiber: Fiber) => void;
+  };
+}> {
+  private _current: Fiber;
 
   constructor(
-    component: ReactComponent,
+    private _fiber: Fiber,
   ) {
-    this._fiber = Fiber.createRoot(component);
-    this._fiber.on('rendered', (fiber) => {
-      this._patch = fiber.fragmentPatchNode;
-    });
+    super();
+    _fiber.on('update', fiber => this.emit('update', fiber));
+    this._current = _fiber;
   }
 
   get current(): Fiber {
-    return this._fiber;
+    return this._current;
   }
 
   get patchNode(): PatchNode {
-    const { _patch: patch } = this;
-    if (!patch) {
-      throw new Error('알수없는 오류');
+    return this._fiber.patchNode;
+  }
+
+  copy(): FiberRoot {
+    const newFiber = this._fiber.copy(null);
+
+    return new FiberRoot(newFiber);
+  }
+
+  setCurrent(key: string, task: (fiber: Fiber) => void) {
+    const fiber = this._fiber.findDescendants(key)?.fiber;
+    if (!fiber) {
+      return;
     }
 
-    return patch;
+    this._current = fiber;
+    this._current.setRoot();
+    task(this._current);
   }
 }

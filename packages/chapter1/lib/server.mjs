@@ -10,8 +10,6 @@ const liveServer = livereload.createServer({
     debug: true
 });
 
-console.log(join(__dirname, 'src'));
-
 liveServer.watch('');
 app.use(express.static(join(__dirname, 'src')))
 app.use(livereloadMiddleware({

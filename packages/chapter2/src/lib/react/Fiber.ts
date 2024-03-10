@@ -2,6 +2,11 @@ import EventBus from "@kjojs/eventbus";
 import { ReactComponent, ReactElement } from "./ReactElement";
 import { PatchNode } from "./PatchNode";
 
+interface FiberChild {
+  fragmentPatchNode: PatchNode;
+  fiber: Fiber;
+}
+
 // 참고 소스코드
 // : https://github.com/facebook/react/blob/338dddc089d5865761219f02b5175db85c54c489/packages/react-reconciler/src/ReactFiber.js
 //
@@ -9,6 +14,10 @@ import { PatchNode } from "./PatchNode";
 // 이해하기 쉽도록 객체지향 기반의 코드로 변형하여 만들어 보겠습니다.
 export class Fiber extends EventBus<{
   rendered: Fiber;
+  update: {
+    key: string;
+    task: (fiber: Fiber) => void;
+  };
 }> {
   static createRoot(component: ReactComponent) {
     const key = '__root__';
@@ -16,59 +25,82 @@ export class Fiber extends EventBus<{
     return new Fiber(
       key,
       null,
-      [],
       {},
+      [],
       component,
+      [],
       true,
     );
   }
 
   static createChild({
+    key,
     element,
     parent,
   }: {
+    key: string;
     element: ReactElement;
     parent: Fiber;
   }) {
     return new Fiber(
-      ReactElement.getKey(element),
+      key,
       parent,
-      [],
       element.props,
+      [],
       element.type as ReactComponent,
+      [],
       false,
     );
   }
 
-  private _children: Array<Fiber> = [];
+  static current: Fiber | null = null;
+  static stateIndex: number = -1;
+
   private _childCursor = -1;
-  private _frgamentPatchNode: PatchNode;
 
   constructor(
     private _key: string,
     private _parent: Fiber | null,
-    private _states: any[],
     private _props: Record<string, any>,
+    private _states: any[],
     private _component: ReactComponent,
+    private _children: Array<FiberChild>,
     private _isRoot: boolean,
+    private _patchNode: PatchNode = PatchNode.createFragment(_key),
   ) {
     super();
-    this._frgamentPatchNode = PatchNode.createFragment(_key);
+    this.on('update', fiber => _parent?.emit('update', fiber));
   }
   
   get key() {
     return this._key;
   }
 
-  get fragmentPatchNode() {
-    return this._frgamentPatchNode;
+  get props() {
+    return this._props;
+  }
+
+  get states() {
+    return this._states;
+  }
+
+  get patchNode() {
+    return this._patchNode;
+  }
+
+  get name() {
+    return this._component.name;
+  }
+
+  setRoot() {
+    this._isRoot = true;
   }
 
   next(): Fiber | null {
     this._childCursor++;
     const child = this._children[this._childCursor];
     if (child) {
-      return child;
+      return child.fiber;
     }
     if (this._isRoot) {
       return null;
@@ -80,74 +112,155 @@ export class Fiber extends EventBus<{
     return null;
   }
 
-  render() {
+  async render() {
+    Fiber.current = this;
+    Fiber.stateIndex = 0;
     const element = this._component(this._props);
-    const patchNode = this._render(element);
+    Fiber.current = null;
+    Fiber.stateIndex = -1;
 
-    this._frgamentPatchNode.appendPatchNode(patchNode);
+    this._patchNode = this._render(element, 0, 0);
+    this._parent?.patchNode.replaceDescendants(this._patchNode);
     this.emit('rendered', this);
   }
 
-  private _render(element: ReactElement): PatchNode {
+  reRender(newProps: Record<any, any>) {
+    this._props = newProps;
+  }
+
+  createDispatcher = (stateIndex: number) => {
+    return (state: any) => {
+      this.emit('update', {
+        key: this._key,
+        task: (fiber) => {
+          fiber.states[stateIndex] = state;
+        }
+      });
+    };
+  }
+
+  copy(parent: Fiber | null): Fiber {
+    const newPatchNode = this._patchNode.copy();
+
+    if (parent) {
+      if (!parent.patchNode.replaceDescendants(newPatchNode)) {
+        throw new Error('알수 없는 오류');
+      }
+    }
+
+    const fiber = new Fiber(
+      this._key,
+      parent,
+      {...this._props},
+      [...this._states],
+      this._component,
+      [],
+      this._isRoot,
+      newPatchNode,
+    );
+
+    this._children.forEach(child => {
+      const childFiber = child.fiber.copy(fiber);
+
+      fiber._children.push({
+        fiber: childFiber,
+        fragmentPatchNode: childFiber.patchNode, 
+      });
+    })
+
+    return fiber;
+  }
+
+  findDescendants(key: string): FiberChild | null {
+    let child = this._findChild(key);
+    if (child) {
+      return child;
+    }
+
+    for (let i = 0; i < this._children.length; i++) {
+      const child = this._children[i].fiber;
+      const grandchild = child.findDescendants(key);
+
+      if (grandchild) {
+        return grandchild;
+      }
+    }
+
+    return null;
+  }
+
+  private _render(
+    element: ReactElement,
+    depth: number,
+    index: number,
+  ): PatchNode {
     if (element.isComponent) {
-      return this._recognizeComponent(element);
+      return this._renderComponent(element, depth, index);
     } else {
-      return this._renderElement(element);
+      return this._renderElement(element, depth, index);
     }
   }
 
-  private _recognizeComponent(element: ReactElement) {
-    let child = this._findChild(ReactElement.getKey(element));
+  private _renderComponent(
+    element: ReactElement,
+    depth: number,
+    index: number,
+  ): PatchNode {
+    const key = ReactElement.getKey(this._key, depth, index);
+    const child = this._findChild(key);
+    const fragmentPatchNode = PatchNode.createFragment(key);
 
     if (!child) {
-      child = Fiber.createChild({
+      const fiber = Fiber.createChild({
+        key,
         element,
         parent: this,
       });
-      this._children.push(child);
+      this._children.push({
+        fragmentPatchNode,
+        fiber,
+      });
+    } else {
+      child.fiber.reRender(element.props);
     }
 
-
-    return child.fragmentPatchNode;
+    return fragmentPatchNode;
   }
 
-  private _renderElement(element: ReactElement): PatchNode {
+  private _renderElement(
+    element: ReactElement,
+    depth: number,
+    index: number,
+  ): PatchNode {
+    const props = element.props;
+    let onClick = null;
+    if (props['onClick']) {
+      onClick = props['onClick'];
+      delete props['onClick'];
+    }
+
+    const key = (depth === 0 && index === 0) ? this._key : ReactElement.getKey(this._key, depth, index);
+    const textContent = typeof element.children === 'string' ? element.children : null;
     const patchNode = new PatchNode(
-      // root 요소의 경우 키값을 fiber의 키로 넣어준다. (함수 이름. ex Home)
-      parent === null ? this._key : ReactElement.getKey(element),
+      key,
       element.type as string,
-      element.props,
-      Array.isArray(element.children)
-        ? element.children.map(child => this._render(child))
-        : element.children,
+      props,
+      [],
+      textContent,
       false,
+      onClick,
     );
+
+    if (Array.isArray(element.children)) {
+      element.children.forEach((child, i) => {
+        patchNode.children[i] = this._render(child, depth + 1, i);
+      });
+    }
 
     return patchNode;
   }
 
-  private _findChild(key: string): Fiber | null {
-    return this._children.find(child => child.key === key) || null;
+  private _findChild(key: string): FiberChild | null {
+    return this._children.find(child => child.fiber.key === key) || null;
   }
-
-  // next(initialState: any) {
-  //   if (this._states.length - 1 < this._stateCursor) {
-  //     this._states[this._stateCursor] = initialState;
-  //   }
-
-  //   const state = this._states[this._stateCursor];
-    
-  //   this._stateCursor++;
-
-  //   return state;
-  // }
-
-  // createDispatcher = () => {
-  //   const stateCursor = this._stateCursor;
-
-  //   return (state: any) => {
-  //     this._states[stateCursor] = state;
-  //     this.emit('setState', this);
-  //   };
-  // }
 }

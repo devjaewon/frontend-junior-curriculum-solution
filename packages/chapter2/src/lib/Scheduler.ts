@@ -18,8 +18,6 @@ class Scheduler extends EventBus<{ renderComplete: Fiber }> {
     if (this._stack.length === 0) {
       return this._work(fiberRoot.current);
     }
-
-    this._pushStack(fiberRoot.current);
   }
 
   private _work(fiber: Fiber) {
@@ -27,20 +25,11 @@ class Scheduler extends EventBus<{ renderComplete: Fiber }> {
 
     const nextFiber = fiber.next();
     if (nextFiber) {
-      this._pushStack(nextFiber);
+      this._stack.push(nextFiber);
     }
     
     if (this._stack.length === 0) {
       this.emit('renderComplete', fiber);
-    }
-  }
-
-  private _pushStack(fiber: Fiber) {
-    let cursor: Fiber | null = fiber;
-
-    while (cursor !== null) {
-      this._stack.push(cursor);
-      cursor = cursor.next();
     }
   }
 

@@ -41,9 +41,14 @@ function createWebpackOption() {
     resolve: {
       extensions: ['.ts', '.js'],
     },
-    plugins: [new HtmlWebpackPlugin({
-      templateContent: createHtmlTemplate(),
-    })],
+    plugins: [
+      new HtmlWebpackPlugin({
+        templateContent: createHtmlTemplate(),
+      }),
+      new Webpack.EnvironmentPlugin({
+        SUBJECT: process.env.SUBJECT
+      }),
+    ],
   }
 }
 
@@ -84,13 +89,16 @@ function createHtmlTemplate() {
       color:#383838;
     }
     .main .count {
-      display:inline-block;
-      font-size:15px;line-height:30px;vertical-align:top;
+      display:inline-block;margin-right:4px;
+      font-weight:bold;font-size:15px;line-height:30px;vertical-align:top;
+    }
+    .main .color {
+      color:red;
     }
     .main .btn {
       display:inline-block;
-      width:40px;height:30px;margin-left:14px;border-radius:15px;
-      border:1px solid #555;background: #fff;
+      height:30px;margin-left:6px;border-radius:15px;
+      border:1px solid #555;padding:0 14px;background: #fff;
       vertical-align:top;
       cursor:pointer;
     }

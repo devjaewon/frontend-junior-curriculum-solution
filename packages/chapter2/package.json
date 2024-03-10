@@ -4,7 +4,9 @@
   "description": "Chatper 2 source code",
   "version": "1.0.0",
   "scripts": {
-    "dev": "node src/cmd/server.mjs"
+    "dev:a": "SUBJECT=A node src/cmd/server.mjs",
+    "dev:b": "SUBJECT=B node src/cmd/server.mjs",
+    "dev:c": "SUBJECT=C node src/cmd/server.mjs"
   },
   "devDependencies": {
     "html-webpack-plugin": "^5.6.0",

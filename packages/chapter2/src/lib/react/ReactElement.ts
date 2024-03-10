@@ -1,17 +1,12 @@
-export type ReactComponent = (props?: Record<string, any>) => ReactElement;
+export interface ReactComponent<P extends object = any> {
+  (props?: P): ReactElement;
+}
 
 export class ReactElement {
-  static getKey(element: ReactElement): string {
-    if (typeof element.type === 'string') {
-      return element.key;
-    }
-    if (typeof element.type === 'function') {
-      return element.type.name;
-    }
-
-    return '';
+  static getKey(parentFiberKey: string, depth: number, index: number) {
+    return `${parentFiberKey}_${depth}_${index}`;
   }
-
+  
   constructor(
     // key 값입니다.
     private _key: string,
@@ -50,7 +45,7 @@ export class ReactElement {
 let keyCounter = 0;
 export function createElement(
   type: string | ReactComponent,
-  config: Record<string, any> | null,
+  config: Record<any, any> | null,
   children: Array<ReactElement> | string | null,
 ) {
   let key = '';
