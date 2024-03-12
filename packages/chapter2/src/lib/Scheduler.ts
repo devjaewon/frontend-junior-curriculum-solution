@@ -1,9 +1,8 @@
 import EventBus from "@kjojs/eventbus";
 import { Fiber } from "./react/Fiber";
-import { ScheduleType } from "../constants/ReactType";
 import { FiberRoot } from "./react/FiberRoot";
-import { FiberEffect } from "./react/FiberEffect";
-import fiberTransition from "./react/FiberTransition";
+import { FiberEffect } from "./react/Effects";
+import { fiberTransition } from "./react/Transition";
 
 enum ScheduleTaskType {
   Urgent,
@@ -21,6 +20,8 @@ interface ScheduleTask {
   timeTick: number;
 }
 
+// Fiber의 작업 우선순위를 조정합니다.
+// Fiber 작업을 적절한 시분할로 비동기 렌더링을 하거나 동기 렌더링을 수행합니다.
 class Scheduler extends EventBus<{ renderComplete: FiberRoot }> {
   static instance = new Scheduler();
 
@@ -49,6 +50,7 @@ class Scheduler extends EventBus<{ renderComplete: FiberRoot }> {
       timer: null,
     };
 
+    // 1. 트랜지션 작업이 abort 됩니다.
     this._abortIfTransitionTaskExist();
     if (task.transitionKey) {
       this._enqueueTransition(task);
@@ -59,6 +61,7 @@ class Scheduler extends EventBus<{ renderComplete: FiberRoot }> {
 
   private _enqueueTask(task: ScheduleTask) {
     if (!this._current) {
+      // 3. 작업이 수행됩니다.
       this._current = task;
       this._workAsync(10);
       return;
@@ -82,6 +85,8 @@ class Scheduler extends EventBus<{ renderComplete: FiberRoot }> {
       timeTick: 0,
     };
 
+    // 2. 먼저 pending 렌더링을 한번 수행하고
+    // transition 렌더링을 이후에 수행합니다.
     this._enqueueTask(pendingTask);
     this._enqueueTask({
       ...task,
@@ -120,10 +125,13 @@ class Scheduler extends EventBus<{ renderComplete: FiberRoot }> {
       transitionKey,
     } = this._current;
 
+    // 4-1. effect들을 적용합니다.
     effectMap[cursor.key]?.forEach(effect => {
       effect.task(cursor);
     });
 
+    // 4-2. pending 작업의 경우
+    // 훅에서 pending 임을 알 수 있게 값을 주입합니다.
     if (taskType === ScheduleTaskType.UrgentPending) {
       fiberTransition.isTransitionPending = true;
       if (cursor.key === transitionKey) {
@@ -131,9 +139,12 @@ class Scheduler extends EventBus<{ renderComplete: FiberRoot }> {
       }
       fiberTransition.isTransitionPending = false;
     } else {
+      // 4-3. 렌더링을 수행합니다.
       cursor.render();
     }
 
+    // 4-4. 다음 fiber 가 있으면 작업을 수행하고
+    // 없으면 renderComplete 이벤트가 발생합니다.
     const nextFiber = cursor.next();
     if (!nextFiber) {
       this.emit('renderComplete', root);
@@ -145,6 +156,9 @@ class Scheduler extends EventBus<{ renderComplete: FiberRoot }> {
       return;
     }
 
+    // 4-5. 시분할로 동작하기 위한 로직입니다.
+    // 50ms 이내에 모두 수행되면 동기적으로 동작합니다.
+    // 만약 더 걸리면 비동기로 동작합니다.
     let asyncTask = false;
     const now = performance.now();
     if (this._current.timeTick === 0) {

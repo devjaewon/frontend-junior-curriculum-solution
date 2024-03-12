@@ -1,9 +1,8 @@
 import EventBus from "@kjojs/eventbus";
 import { ReactComponent, ReactElement } from "./ReactElement";
 import { PatchNode } from "./PatchNode";
-import { FiberEffect } from "./FiberEffect";
-import fiberIndicator from "./FiberIndicator";
-import fiberTransition from "./FiberTransition";
+import { FiberEffect, fiberIndicator } from "./Effects";
+import { fiberTransition } from "./Transition";
 
 interface FiberChild {
   fragmentPatchNode: PatchNode;
@@ -14,7 +13,7 @@ interface FiberChild {
 // : https://github.com/facebook/react/blob/338dddc089d5865761219f02b5175db85c54c489/packages/react-reconciler/src/ReactFiber.js
 //
 // Fiber는 모듈이라기보다는 렌더링 작업노드에 대한 명세서 객체입니다.
-// 이해하기 쉽도록 객체지향 기반의 코드로 변형하여 만들어 보겠습니다.
+// 이해하기 쉽도록 객체지향 기반의 코드로 변형된 설계입니다.
 export class Fiber extends EventBus<{
   setState: {
     effect: FiberEffect;
@@ -176,39 +175,6 @@ export class Fiber extends EventBus<{
         fragmentPatchNode: childFiber.patchNode, 
       });
     });
-
-    return fiber;
-  }
-
-  copyForPending(parent: Fiber | null, key: string): Fiber {
-    const newPatchNode = this._patchNode.copy();
-
-    if (parent) {
-      if (!parent.patchNode.replaceDescendants(newPatchNode)) {
-        throw new Error('알수 없는 오류');
-      }
-    }
-
-    const fiber = new Fiber(
-      this._key,
-      parent,
-      {...this._props},
-      [...this._states],
-      this._component,
-      [],
-      this._isRoot,
-      newPatchNode,
-      this._isRendered,
-    );
-
-    this._children.forEach(child => {
-      const childFiber = child.fiber.copyForPending(fiber, key);
-
-      fiber._children.push({
-        fiber: childFiber,
-        fragmentPatchNode: childFiber.patchNode, 
-      });
-    })
 
     return fiber;
   }

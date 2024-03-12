@@ -6,6 +6,7 @@ interface RenderUnit {
   index: number;
 }
 
+// PatchNode를 실제 DOM에 반영하는 모듈입니다.
 class Renderer {
   constructor(
     private _containerElement: HTMLElement,

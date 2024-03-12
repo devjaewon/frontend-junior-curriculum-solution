@@ -1,4 +1,4 @@
-import { useTransition } from '../../lib/react/Hooks';
+import { useTransition } from '../../lib/react/Transition';
 import { createElement as e } from '../../lib/react/ReactElement';
 
 export default function TabButtons ({

@@ -3,7 +3,6 @@
 
 export class PatchNode {
   static fragmentKey = '__fragment__';
-  static DEBUG = false;
 
   static createFragment(
     key: string,
