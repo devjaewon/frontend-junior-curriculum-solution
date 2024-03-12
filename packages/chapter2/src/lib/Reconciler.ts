@@ -4,6 +4,7 @@ import { ReactComponent } from "./react/ReactElement";
 import { PatchNode } from "./react/PatchNode";
 import { FiberRoot } from "./react/FiberRoot";
 import Renderer from "./Renderer";
+import { FiberEffect } from "./react/FiberEffect";
 
 // 참고 소스코드
 // Reconciler 주요 동작
@@ -12,51 +13,49 @@ import Renderer from "./Renderer";
 // : https://github.com/facebook/react/blob/main/packages/react-reconciler/src/ReactFiberWorkLoop.js#L744
 class Reconciler {
   private _current: FiberRoot | null = null;
-  private _workInProgress: FiberRoot | null = null;
 
   constructor(
     private _scheduler: Scheduler,
     private _renderer: Renderer,
   ) {
-    this._scheduler.on('renderComplete', () => {
-      this._commit(this._diff());
+    this._scheduler.on('renderComplete', (workInProgress) => {
+      this._commit(workInProgress, this._diff(workInProgress));
     });
   }
 
   mount(component: ReactComponent) {
-    this._workInProgress = new FiberRoot(Fiber.createRoot(component));
-    this._scheduler.schedule(this._workInProgress);
+    const workInProgress = new FiberRoot(Fiber.createRoot(component));
+
+    this._scheduler.schedule(
+      workInProgress,
+      [],
+      null,
+    );
   }
 
-  private _update(key: string, task: (fiber: Fiber) => void) {
+  private _setState(
+    effect: FiberEffect,
+    transitionKey: string | null,
+  ) {
     if (!this._current) {
       throw new Error('assert');
     }
 
-    this._workInProgress = this._current.copy();
-    this._workInProgress.setCurrent(key, task);
-    this._scheduler.schedule(this._workInProgress);
+    const workInProgress = this._current.copy();
+
+    workInProgress.setCurrent(effect.key);
+    this._scheduler.schedule(
+      workInProgress,
+      [effect],
+      transitionKey,
+    );
   }
 
-  private _diff(): PatchNode {
-    if (!this._workInProgress) {
-      throw new Error('assert');
-    }
-
-    if (!this._current) {
-      return this._updateAll(this._workInProgress.patchNode, true);
-    }
-    
-    return this._compare(this._current.patchNode, this._workInProgress.patchNode);
-  }
-
-  private _updateAll(patch: PatchNode, dirty: boolean): PatchNode {
-    patch.dirty = dirty;
-    if (Array.isArray(patch.children) && patch.children.length > 0) {
-      patch.children.forEach(patchChild => this._updateAll(patchChild, dirty));
-    }
-
-    return patch;
+  private _diff(workInProgress: FiberRoot): PatchNode {
+    return this._compare(
+      this._current?.patchNode || null,
+      workInProgress.patchNode,
+    );
   }
 
   private _compare(before: PatchNode | null, after: PatchNode): PatchNode {
@@ -82,11 +81,14 @@ class Reconciler {
     return after;
   }
 
-  private _commit(patchNode: PatchNode) {
+  private _commit(workInProgress: FiberRoot, patchNode: PatchNode) {
     this._renderer.apply(patchNode);
-    this._current?.off();
-    this._current = this._workInProgress;
-    this._current!.on('update', ({ key, task }) => this._update(key, task));
+    // this._current?.off(); // event system 을 분리하지 않아서 우선은 메모리 누수 놔둔 상태입니다.
+    this._current = workInProgress;
+    this._current.callAfterCommit();
+    this._current!.on('setState', ({ effect, transitonKey }) => {
+      this._setState(effect, transitonKey);
+    });
   }
 }
 

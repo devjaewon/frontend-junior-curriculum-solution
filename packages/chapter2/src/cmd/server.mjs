@@ -94,11 +94,17 @@ function createHtmlTemplate() {
     }
     .main .btn {
       display:inline-block;height:30px;margin-left:6px;border-radius:15px;
-      border:1px solid #555;padding:0 14px;background: #fff;
+      border:2px solid #555;padding:0 14px;background:#fff;
       vertical-align:top;cursor:pointer;
     }
+    .main .btn.selected {
+      background: #555;color:#fff;
+    }
     .main .tab-buttons .btn + .btn {
-      margin-left:12px;
+      margin-left:6px;
+    }
+    .main .tab-buttons.pending .btn {
+      border-color: red;
     }
     .main .panel {
       margin-top:12px;

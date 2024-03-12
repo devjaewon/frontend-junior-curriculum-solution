@@ -80,7 +80,7 @@ class Renderer {
       existed.remove();
     } else {
       const { attributes } = unit.patch;
-
+      
       existed.className = attributes['className'];
       if (patch.content !== null) {
         existed.innerText = patch.content;

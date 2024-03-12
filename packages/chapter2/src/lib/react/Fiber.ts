@@ -1,6 +1,9 @@
 import EventBus from "@kjojs/eventbus";
 import { ReactComponent, ReactElement } from "./ReactElement";
 import { PatchNode } from "./PatchNode";
+import { FiberEffect } from "./FiberEffect";
+import fiberIndicator from "./FiberIndicator";
+import fiberTransition from "./FiberTransition";
 
 interface FiberChild {
   fragmentPatchNode: PatchNode;
@@ -13,10 +16,9 @@ interface FiberChild {
 // Fiber는 모듈이라기보다는 렌더링 작업노드에 대한 명세서 객체입니다.
 // 이해하기 쉽도록 객체지향 기반의 코드로 변형하여 만들어 보겠습니다.
 export class Fiber extends EventBus<{
-  rendered: Fiber;
-  update: {
-    key: string;
-    task: (fiber: Fiber) => void;
+  setState: {
+    effect: FiberEffect;
+    transitonKey: string | null;
   };
 }> {
   static createRoot(component: ReactComponent) {
@@ -52,11 +54,9 @@ export class Fiber extends EventBus<{
       false,
     );
   }
-
-  static current: Fiber | null = null;
-  static stateIndex: number = -1;
-
   private _childCursor = -1;
+  private _pendingProps: Record<string, any>;
+  private _pendingStates: any[];
 
   constructor(
     private _key: string,
@@ -67,25 +67,28 @@ export class Fiber extends EventBus<{
     private _children: Array<FiberChild>,
     private _isRoot: boolean,
     private _patchNode: PatchNode = PatchNode.createFragment(_key),
+    private _isRendered = false,
   ) {
     super();
-    this.on('update', fiber => _parent?.emit('update', fiber));
+    this._pendingProps = {..._props};
+    this._pendingStates = [..._states];
+    this.on('setState', fiber => _parent?.emit('setState', fiber));
   }
   
   get key() {
     return this._key;
   }
 
-  get props() {
-    return this._props;
-  }
-
-  get states() {
-    return this._states;
+  get pendingStates() {
+    return this._pendingStates;
   }
 
   get patchNode() {
     return this._patchNode;
+  }
+
+  get component() {
+    return this._component;
   }
 
   get name() {
@@ -94,6 +97,10 @@ export class Fiber extends EventBus<{
 
   setRoot() {
     this._isRoot = true;
+  }
+
+  updatePendingProps(newPendingProps: Record<string, any>) {
+    this._pendingProps = newPendingProps;
   }
 
   next(): Fiber | null {
@@ -112,29 +119,30 @@ export class Fiber extends EventBus<{
     return null;
   }
 
-  async render() {
-    Fiber.current = this;
-    Fiber.stateIndex = 0;
-    const element = this._component(this._props);
-    Fiber.current = null;
-    Fiber.stateIndex = -1;
+  render() {
+    if (this._isRenderRequired()) {
+      fiberIndicator.cursor = this;
+      fiberIndicator.stateIndex = 0;
+      const element = this._component(this._pendingProps);
+      fiberIndicator.cursor = null;
+      fiberIndicator.stateIndex = -1;
 
-    this._patchNode = this._render(element, 0, 0);
+      this._patchNode = this._render(element, 0, 0);
+    }
     this._parent?.patchNode.replaceDescendants(this._patchNode);
-    this.emit('rendered', this);
-  }
-
-  reRender(newProps: Record<any, any>) {
-    this._props = newProps;
+    this._isRendered = true;
   }
 
   createDispatcher = (stateIndex: number) => {
     return (state: any) => {
-      this.emit('update', {
-        key: this._key,
-        task: (fiber) => {
-          fiber.states[stateIndex] = state;
-        }
+      this.emit('setState', {
+        effect: {
+          key: this._key,
+          task: (fiber) => {
+            fiber.pendingStates[stateIndex] = state;
+          },
+        },
+        transitonKey: fiberTransition.transitionKey,
       });
     };
   }
@@ -157,10 +165,44 @@ export class Fiber extends EventBus<{
       [],
       this._isRoot,
       newPatchNode,
+      this._isRendered,
     );
 
     this._children.forEach(child => {
       const childFiber = child.fiber.copy(fiber);
+
+      fiber._children.push({
+        fiber: childFiber,
+        fragmentPatchNode: childFiber.patchNode, 
+      });
+    });
+
+    return fiber;
+  }
+
+  copyForPending(parent: Fiber | null, key: string): Fiber {
+    const newPatchNode = this._patchNode.copy();
+
+    if (parent) {
+      if (!parent.patchNode.replaceDescendants(newPatchNode)) {
+        throw new Error('알수 없는 오류');
+      }
+    }
+
+    const fiber = new Fiber(
+      this._key,
+      parent,
+      {...this._props},
+      [...this._states],
+      this._component,
+      [],
+      this._isRoot,
+      newPatchNode,
+      this._isRendered,
+    );
+
+    this._children.forEach(child => {
+      const childFiber = child.fiber.copyForPending(fiber, key);
 
       fiber._children.push({
         fiber: childFiber,
@@ -189,8 +231,10 @@ export class Fiber extends EventBus<{
     return null;
   }
 
-  isDiffrent(component: ReactComponent): boolean {
-    return this._component !== component;
+  callAfterCommit(): void {
+    this._props = {...this._pendingProps};
+    this._states = [...this._pendingStates];
+    this._children.forEach(child => child.fiber.callAfterCommit());
   }
 
   private _render(
@@ -215,9 +259,9 @@ export class Fiber extends EventBus<{
     const child = this._children[childIndex]?.fiber;
     const fragmentPatchNode = PatchNode.createFragment(key);
 
-    if (child && !child.isDiffrent(element.type as ReactComponent)) {
-      child.reRender(element.props);
-
+    if (child && child.component === element.type) {
+      child.updatePendingProps(element.props);
+      
       return fragmentPatchNode;
     }
 
@@ -274,5 +318,16 @@ export class Fiber extends EventBus<{
 
   private _findChildIndex(key: string): number {
     return this._children.findIndex(child => child.fiber.key === key);
+  }
+
+  private _isSame(): boolean {
+    const isSameStates = this._states.every((state, i) => state === this._pendingStates[i]);
+    const isSameProps = Object.entries(this._props).every(([key, value], i) => value === this._pendingProps[key]);
+
+    return isSameProps && isSameStates;
+  }
+
+  private _isRenderRequired(): boolean {
+    return !this._isRendered || !this._isSame() || fiberTransition.isTransitionPending;
   }
 }
