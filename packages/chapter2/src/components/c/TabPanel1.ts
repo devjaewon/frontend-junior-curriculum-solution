@@ -8,5 +8,5 @@ export default function TabPanel1() {
 		children.push(e(TabPanel1Item, null, null));
 	}
 
-	return e('ul', { className: 'panel-1' }, children);
+	return e('ul', { className: 'panel panel-1' }, children);
 }

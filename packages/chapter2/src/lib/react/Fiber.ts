@@ -172,9 +172,9 @@ export class Fiber extends EventBus<{
   }
 
   findDescendants(key: string): FiberChild | null {
-    let child = this._findChild(key);
-    if (child) {
-      return child;
+    let childIndex = this._findChildIndex(key);
+    if (childIndex >= 0) {
+      return this._children[childIndex];
     }
 
     for (let i = 0; i < this._children.length; i++) {
@@ -187,6 +187,10 @@ export class Fiber extends EventBus<{
     }
 
     return null;
+  }
+
+  isDiffrent(component: ReactComponent): boolean {
+    return this._component !== component;
   }
 
   private _render(
@@ -207,21 +211,29 @@ export class Fiber extends EventBus<{
     index: number,
   ): PatchNode {
     const key = ReactElement.getKey(this._key, depth, index);
-    const child = this._findChild(key);
+    const childIndex = this._findChildIndex(key);
+    const child = this._children[childIndex]?.fiber;
     const fragmentPatchNode = PatchNode.createFragment(key);
 
-    if (!child) {
-      const fiber = Fiber.createChild({
+    if (child && !child.isDiffrent(element.type as ReactComponent)) {
+      child.reRender(element.props);
+
+      return fragmentPatchNode;
+    }
+
+    const fiberChild: FiberChild = {
+      fiber: Fiber.createChild({
         key,
         element,
         parent: this,
-      });
-      this._children.push({
-        fragmentPatchNode,
-        fiber,
-      });
+      }),
+      fragmentPatchNode,
+    };
+
+    if (!child) {
+      this._children.push(fiberChild);
     } else {
-      child.fiber.reRender(element.props);
+      this._children.splice(childIndex, 1, fiberChild);
     }
 
     return fragmentPatchNode;
@@ -260,7 +272,7 @@ export class Fiber extends EventBus<{
     return patchNode;
   }
 
-  private _findChild(key: string): FiberChild | null {
-    return this._children.find(child => child.fiber.key === key) || null;
+  private _findChildIndex(key: string): number {
+    return this._children.findIndex(child => child.fiber.key === key);
   }
 }

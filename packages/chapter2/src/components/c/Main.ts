@@ -7,8 +7,12 @@ import TabPanel1 from './TabPanel1';
 export default function Main() {
 	const [tabIndex, setTabIndex] = useState(0);
 
+	function onChange(index: number) {
+		setTabIndex(index);
+	}
+
 	return e('main', { className: 'main' }, [
-		e(TabButtons, { index: tabIndex, onChange: setTabIndex }, null),
+		e(TabButtons, { index: tabIndex, onChange }, null),
 		tabIndex === 0
 			? e(TabPanel0, null, null)
 			: e(TabPanel1, null, null)

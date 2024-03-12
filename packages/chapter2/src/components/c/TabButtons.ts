@@ -10,7 +10,7 @@ export default function TabButtons ({
 	const rootClassName = 'tab-buttons';
 	
 	function getButtonClassName(i: number) {
-		return i === index ? 'tab selected' : 'tab';
+		return i === index ? 'btn selected' : 'btn';
 	}
 
 	return e('div', { className: rootClassName }, [
